@@ -1,0 +1,8 @@
+./sbt
+update
+jetty-restart
+
+http://localhost:8080/playground
+
+This lets you pick which solution you want to try.  Currently there is only "basic" and a
+"yourVersion" which is a stub to show you how to roll your own.

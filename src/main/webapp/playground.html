@@ -1,0 +1,39 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <script id="jquery" src="/classpath/jquery.js" type="text/javascript"/>
+  </head>
+  <body>
+    <div style="border-style: solid; border-width: 2px; border-color: #AAA; background-color: #DDD; width: 400px;">
+      The rules are simple.<br/>
+      <div style="padding-left:10px;">
+        - item 1 and item 2 should both be integers.<br/>
+        - item 2 starts with no value<br/>
+        - item 1 should be less than item 2<br/>
+      </div>
+      Extra Credit<br/>
+      <div style="padding-left:10px;">
+        - write a widget that lets you pick a number<br/>
+      </div>
+    </div>
+    <br/>
+    Version Selector:
+    <div style="padding-left: 20px;">
+      <lift:Playground.picker/>
+    </div>
+    <br/>
+    <hr/>
+    <!-- Begin test bed -->
+
+    <lift:Playground form="post">
+      This is a sample of a form:<br/>
+      item 1: <form:item1/><br/>
+      item 2: <form:item2/><br/>
+      <br/>
+      <form:submit/>
+    </lift:Playground>
+
+    <!-- End test bed -->
+
+    <lift:msgs/>
+  </body>
+</html>

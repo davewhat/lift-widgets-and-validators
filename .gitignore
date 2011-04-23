@@ -1,0 +1,8 @@
+lib_managed
+.gitignore~
+project/boot
+project/build/target
+target
+.idea
+Main.iml
+*~
