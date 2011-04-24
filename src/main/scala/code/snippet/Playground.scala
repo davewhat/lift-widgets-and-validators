@@ -7,11 +7,13 @@ import java.util.Date
 import code.lib._
 import Helpers._
 import net.liftweb.http.{DispatchSnippet, S, SHtml}
+import net.liftweb.http.js.JsCmds
 
 class Playground extends DispatchSnippet {
 
   val versions:List[(String, (NodeSeq => NodeSeq))] = List(
     ("basic", basic _),
+    ("jasonsThoughts", jasonsThoughts _),
     ("yourVersion", yourVersion _)
   )
 
@@ -41,6 +43,23 @@ class Playground extends DispatchSnippet {
       case _ => S.error("b must be an Int")
     }),
     "submit" -> SHtml.submit("submit", () => {if (a<b) (S.warning("good")) else (S.error("bad"))}))
+  }
+
+  //jasonsThoughts -- My understanding of how Jason has done this in the past.
+  //
+  // -every field is wrapped with an Option[Field]
+  // -If all Options[Fields] are isDefined, we passed the field level tests
+  // -Any cross-field testing must be put into the submit
+  // -Negative: If we want to also warn that 'a is not less than b' we need duplicate logic (pop-up warning and submit button)
+
+  var optA:Option[Int] = Some(a)
+  var optB:Option[Int] = None
+
+  def jasonsThoughts(xhtml: NodeSeq): NodeSeq = {
+    bind("form", xhtml,
+    "item1" -> SHtml.ajaxText(a.toString, x => {optA = ControlHelpers.tryo(x.toInt); if (optA.isEmpty) (JsCmds.Alert("a must be an Int"))} ),
+    "item2" -> SHtml.ajaxText("", x => {optB = ControlHelpers.tryo(x.toInt); if (optB.isEmpty) (JsCmds.Alert("b must be an Int"))} ),
+    "submit" -> SHtml.submit("submit", () => if (optA.isDefined && optB.isDefined && (optA.get < optB.get)) (S.warning("good")) else (S.warning("bad"))))
   }
 
   //your version
