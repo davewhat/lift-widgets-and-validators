@@ -63,14 +63,14 @@ class Playground extends DispatchSnippet {
     "item1" -> SHtml.ajaxText(a.toString, x => {optA = ControlHelpers.tryo(x.toInt); if (optA.isEmpty) (JsCmds.Alert("a must be an Int"))} ),
     "item2" -> SHtml.ajaxText("", x => {optB = ControlHelpers.tryo(x.toInt); if (optB.isEmpty) (JsCmds.Alert("b must be an Int"))} ),
     "condition" -> NodeSeq.Empty,
-    "alessb" -> SimpleWiringUI((optA, optB)) {
-      for { a <- optA; b <- optB } {
+    "alessb" -> SimpleWiringUI((optA, optB)) { _ =>
+      (for { a <- optA; b <- optB } yield {
         validateAlessB = Some(()).filter(_ => a < b)
-	validateAlessB match {
+	      validateAlessB match {
           case Some(_) => NodeSeq.Empty
           case None    => Text("a must be less than b")
         }
-      }
+      }) getOrElse (NodeSeq.Empty)
     },
     "submit" -> SHtml.submit("submit", () => {
       (for {
@@ -80,7 +80,7 @@ class Playground extends DispatchSnippet {
       } yield {
         // save the values
       }) getOrElse (S.error("Please correct the highlighted fields"))
-    }
+    }))
   }
 
 
