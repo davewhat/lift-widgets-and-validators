@@ -56,13 +56,31 @@ class Playground extends DispatchSnippet {
 
   var optA:Option[Int] = Some(a)
   var optB:Option[Int] = None
+  var validateAlessB: Option[Unit] = None
 
   def jasonsThoughts(xhtml: NodeSeq): NodeSeq = {
     bind("form", xhtml,
     "item1" -> SHtml.ajaxText(a.toString, x => {optA = ControlHelpers.tryo(x.toInt); if (optA.isEmpty) (JsCmds.Alert("a must be an Int"))} ),
     "item2" -> SHtml.ajaxText("", x => {optB = ControlHelpers.tryo(x.toInt); if (optB.isEmpty) (JsCmds.Alert("b must be an Int"))} ),
     "condition" -> NodeSeq.Empty,
-    "submit" -> SHtml.submit("submit", () => if (optA.isDefined && optB.isDefined && (optA.get < optB.get)) (S.warning("good")) else (S.warning("bad"))))
+    "alessb" -> SimpleWiringUI((optA, optB)) {
+      for { a <- optA; b <- optB } {
+        validateAlessB = Some(()).filter(_ => a < b)
+	validateAlessB match {
+          case Some(_) => NodeSeq.Empty
+          case None    => Text("a must be less than b")
+        }
+      }
+    },
+    "submit" -> SHtml.submit("submit", () => {
+      (for {
+        a <- optA
+        b <- optB
+        _ <- validateAlessB
+      } yield {
+        // save the values
+      }) getOrElse (S.error("Please correct the highlighted fields"))
+    }
   }
 
 
