@@ -95,34 +95,43 @@ class Playground extends DispatchSnippet {
   }
 
 
-  abstract class Validator {
-    def test(s: String): Boolean
-  }
-  object IntegerValidator extends Validator {
-    def test(s: String) = ControlHelpers.tryo(s.toInt).isDefined
+  abstract class Validator[A, B] {
+    def validate(a: A): Box[B]
+    def andThen(that: Validator[B, C]): Validator[A, C] = new Validator[A, C] {
+      def validate(a: A) = for {
+        b <- this.validate(a)
+        c <- that.validate(b)
+      } yield c
+    }
   }
 
-  //VHtml would replace SHtml and have similar methods (text, ajaxText, textArea, etc.)
-  //The "V" stands for Validator
+  object IntegerValidator extends Validator[String, Int] {
+    def validate(s: String) = ControlHelpers.tryo(s.toInt)
+  }
+  object RequiredValidator extends Validator[String, String] {
+    def validate(s: String) = if (s.isEmpty) Failure("required field") else Full(s)
+  }
+
+  // VHtml would replace SHtml and have similar methods (text, ajaxText, textArea, etc.)
+  // The "V" stands for Validator
   object VHtml {
-    def ajaxText[T](value: String, errorMessage: String, convert: String => Option[T], validators: Validator*): VHtml = {
+    def ajaxText[T](defaultValue: String, validator: Validator[String, T]): VHtml = {
       new VHtml[T] {
-        var varValue = value
-        def valueOpt = if (validatorsPass) convert(varValue) else None
-        private def validatorsPass = validators.forall(_.test(varValue))
+        var value = defaultValue
+        def valueBox = validator.validate(value)
 
         def toForm = <span>
-                       { SHtml.ajaxText(varValue, varValue = _) }
-                       { SimpleWiringUI(varValue)(_ => if (validatorsPass) NodeSeq.Empty else Text(errorMessage)) }
+                       { SHtml.ajaxText(value, value = _) }
+                       { SimpleWiringUI(value)(_ => valueBox match { case Failure(msg) => Text(msg) case _ => NodeSeq.Empty })}
                      </span>
 
       }
     }
 
-    def validatorMsg[T](value: => T, errorMessage: String, f: T => Boolean): VHtml = {
+    def validatorMsg[T](value: => T, errorMessage: String, validate: T => Box[Unit]): VHtml = {
       new VHtml() {
-        def valueOpt = if (f(value)) Some("") else None
-        def apply() = <span>{SimpleWiringUI(value)(currentValue => if (f(currentValue)) NodeSeq.Empty else Text(errorMessage))}</span>
+        def valueBox = validate(value) match { case Empty => Failure(errorMessage) case b => b }
+        def toForm = <span>{SimpleWiringUI(value)(_ => valueBox match { case Failure(msg) => Text(msg) case _ => NodeSeq.Empty })}</span>
       }
     }
 
@@ -134,17 +143,11 @@ class Playground extends DispatchSnippet {
     def valueFromString: String => Option[T]
   }
 
-  // COMMENT: re "must be an integer!" -- the validator should be in charge of producing that error message
-  // COMMENT: re ControlHelpers.tryo(_.toInt) -- it would be great if the validator just returned a Box[Int] instead
-  //          of a boolean, performing both functions in one. Can even take advantage of the Failure case.
-  val aVText = VHtml.ajaxText[String](a.toString, "must be an integer!", ControlHelpers.tryo(_.toInt), IntegerValidator)
-  val bVText = VHtml.ajaxText[String]("", "must be an integer!", ControlHelpers.tryo(_.toInt), IntegerValidator)
-  val conditionText = VHtml.validatorMsg((aVText.valueIntOpt, bVText.valueIntOpt), "a must be less than b",
-  { a: (Option[Int], Option[Int]) => a match {
-    case ((x:Option[Int]), (y:Option[Int])) => x.exists(xv => y.exists(yv => xv < yv))
-    case _ => true
-  }
-  })
+  val aVText = VHtml.ajaxText[String](a.toString, IntegerValidator)
+  val bVText = VHtml.ajaxText[String]("", IntegerValidator)
+  val conditionText = VHtml.validatorMsg((aVText.valueBox, bVText.valueBox), "a must be less than b",
+    { case (aBox, bBox) => for { a <- aBox, b <- bBox; if a < b } yield () }
+  )
 
   def validators(xhtml: NodeSeq): NodeSeq = {
     bind("form", xhtml,
@@ -152,15 +155,18 @@ class Playground extends DispatchSnippet {
     "item2" -> bVText.toForm,
     "condition" -> conditionText.toForm,
     "submit" -> SHtml.submit("submit", () => {
-      (for {
-        userA <- aVText.valueIntOpt
-        userB <- bVText.valueIntOpt
-        relationship <- conditionText.valueOpt //need to test the relationship between a and b
+      val result = for {
+        userA <- aVText.valueBox
+        userB <- bVText.valueBox
+        _ <- conditionText.valueBox
       } yield {
         a = userA
         b = userB
-        S.warning("good")
-      }) getOrElse (S.warning("bad"))
+      }
+      result match {
+        case Failure(msg) => S.error(msg)
+        case _ => doSave()
+      }
     }))
   }
 
