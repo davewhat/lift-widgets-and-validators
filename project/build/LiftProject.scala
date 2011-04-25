@@ -10,6 +10,7 @@ class LiftProject(info: ProjectInfo) extends DefaultWebProject(info) {
   // this line
   // override def scanDirectories = Nil
 
+  override def compileOptions = super.compileOptions ++ Seq(Unchecked)
   override def libraryDependencies = Set(
     "net.liftweb" %% "lift-webkit" % liftVersion % "compile" withSources(),
     "org.mortbay.jetty" % "jetty" % "6.1.22" % "test",

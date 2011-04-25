@@ -42,6 +42,7 @@ class Playground extends DispatchSnippet {
       case Full(y:Int) => b = y
       case _ => S.error("b must be an Int")
     }),
+    "condition" -> NodeSeq.Empty,
     "submit" -> SHtml.submit("submit", () => {if (a<b) (S.warning("good")) else (S.error("bad"))}))
   }
 
@@ -59,6 +60,7 @@ class Playground extends DispatchSnippet {
     bind("form", xhtml,
     "item1" -> SHtml.ajaxText(a.toString, x => {optA = ControlHelpers.tryo(x.toInt); if (optA.isEmpty) (JsCmds.Alert("a must be an Int"))} ),
     "item2" -> SHtml.ajaxText("", x => {optB = ControlHelpers.tryo(x.toInt); if (optB.isEmpty) (JsCmds.Alert("b must be an Int"))} ),
+    "condition" -> NodeSeq.Empty,
     "submit" -> SHtml.submit("submit", () => if (optA.isDefined && optB.isDefined && (optA.get < optB.get)) (S.warning("good")) else (S.warning("bad"))))
   }
 
