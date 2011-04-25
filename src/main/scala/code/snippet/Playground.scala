@@ -97,11 +97,14 @@ class Playground extends DispatchSnippet {
 
   abstract class Validator[A, B] {
     def validate(a: A): Box[B]
-    def andThen(that: Validator[B, C]): Validator[A, C] = new Validator[A, C] {
-      def validate(a: A) = for {
-        b <- this.validate(a)
-        c <- that.validate(b)
-      } yield c
+    def andThen[C](that: Validator[B, C]): Validator[A, C] = {
+      val thisParent = this //COMMENT: Jason, is there a better way to do this?
+      new Validator[A, C] {
+        def validate(a: A) = for {
+          b <- thisParent.validate(a)
+          c <- that.validate(b)
+        } yield c
+      }
     }
   }
 
@@ -115,23 +118,23 @@ class Playground extends DispatchSnippet {
   // VHtml would replace SHtml and have similar methods (text, ajaxText, textArea, etc.)
   // The "V" stands for Validator
   object VHtml {
-    def ajaxText[T](defaultValue: String, validator: Validator[String, T]): VHtml = {
+    def ajaxText[T](defaultValue: String, validator: Validator[String, T]): VHtml[T] = {
       new VHtml[T] {
         var value = defaultValue
         def valueBox = validator.validate(value)
 
         def toForm = <span>
                        { SHtml.ajaxText(value, value = _) }
-                       { SimpleWiringUI(value)(_ => valueBox match { case Failure(msg) => Text(msg) case _ => NodeSeq.Empty })}
+                       { SimpleWiringUI(value)(_ => valueBox match { case Failure(msg, _, _) => Text(msg) case _ => NodeSeq.Empty })}
                      </span>
 
       }
     }
 
-    def validatorMsg[T](value: => T, errorMessage: String, validate: T => Box[Unit]): VHtml = {
-      new VHtml() {
-        def valueBox = validate(value) match { case Empty => Failure(errorMessage) case b => b }
-        def toForm = <span>{SimpleWiringUI(value)(_ => valueBox match { case Failure(msg) => Text(msg) case _ => NodeSeq.Empty })}</span>
+    def validatorMsg[T](value: => T, errorMessage: String, validate: T => Box[Unit]): VHtml[Unit] = {
+      new VHtml[Unit]() {
+        def valueBox = validate(value) match { case Empty => Failure(errorMessage) case b => Full(()) }
+        def toForm = <span>{SimpleWiringUI(value)(_ => valueBox match { case Failure(msg, _, _) => Text(msg) case _ => NodeSeq.Empty })}</span>
       }
     }
 
@@ -139,14 +142,16 @@ class Playground extends DispatchSnippet {
 
   abstract class VHtml[T] {
     def toForm: NodeSeq
-    def valueOpt: Option[T]
-    def valueFromString: String => Option[T]
+    def valueBox: Box[T]
   }
 
-  val aVText = VHtml.ajaxText[String](a.toString, IntegerValidator)
-  val bVText = VHtml.ajaxText[String]("", IntegerValidator)
+  val aVText = VHtml.ajaxText[Int](a.toString, IntegerValidator)
+  val bVText = VHtml.ajaxText[Int]("", IntegerValidator)
   val conditionText = VHtml.validatorMsg((aVText.valueBox, bVText.valueBox), "a must be less than b",
-    { case (aBox, bBox) => for { a <- aBox, b <- bBox; if a < b } yield () }
+    (_:(Box[Int],Box[Int])) match {
+      case (Full(a: Int), Full(b: Int)) => Some(()).filter(x => a < b)
+      case x => Empty
+    }
   )
 
   def validators(xhtml: NodeSeq): NodeSeq = {
@@ -164,8 +169,8 @@ class Playground extends DispatchSnippet {
         b = userB
       }
       result match {
-        case Failure(msg) => S.error(msg)
-        case _ => doSave()
+        case Failure(msg, _, _) => S.error(msg)
+        case _ => S.error("good") //doSave()
       }
     }))
   }
