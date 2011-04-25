@@ -105,15 +105,16 @@ class Playground extends DispatchSnippet {
   //VHtml would replace SHtml and have similar methods (text, ajaxText, textArea, etc.)
   //The "V" stands for Validator
   object VHtml {
-    def ajaxText(value: String, errorMessage: String, validators: Validator*): VHtml = {
-      new VHtml() {
+    def ajaxText[T](value: String, errorMessage: String, convert: String => Option[T], validators: Validator*): VHtml = {
+      new VHtml[T] {
         var varValue = value
-        def valueOpt = if (validatorsPass) Some(varValue) else None
+        def valueOpt = if (validatorsPass) convert(varValue) else None
         private def validatorsPass = validators.forall(_.test(varValue))
 
-        def apply() = <span>{SHtml.ajaxText(varValue, varValue = _)}
-                          {SimpleWiringUI(varValue)(_ => if (validatorsPass) NodeSeq.Empty else Text(errorMessage))}
-                    </span>
+        def toForm = <span>
+                       { SHtml.ajaxText(varValue, varValue = _) }
+                       { SimpleWiringUI(varValue)(_ => if (validatorsPass) NodeSeq.Empty else Text(errorMessage)) }
+                     </span>
 
       }
     }
@@ -127,15 +128,17 @@ class Playground extends DispatchSnippet {
 
   }
 
-  abstract class VHtml() {
-    def apply(): NodeSeq
-    def valueOpt: Option[String]
-    //I like the idea below for Int, Calendar, Float, etc.  But how will it be extended for external types (JodaDateTime)?
-    def valueIntOpt: Option[Int] = valueOpt.flatMap(s => ControlHelpers.tryo(s.toInt))
+  abstract class VHtml[T] {
+    def toForm: NodeSeq
+    def valueOpt: Option[T]
+    def valueFromString: String => Option[T]
   }
 
-  val aVText = VHtml.ajaxText(a.toString, "must be an integer!", IntegerValidator)
-  val bVText = VHtml.ajaxText("", "must be an integer!", IntegerValidator)
+  // COMMENT: re "must be an integer!" -- the validator should be in charge of producing that error message
+  // COMMENT: re ControlHelpers.tryo(_.toInt) -- it would be great if the validator just returned a Box[Int] instead
+  //          of a boolean, performing both functions in one. Can even take advantage of the Failure case.
+  val aVText = VHtml.ajaxText[String](a.toString, "must be an integer!", ControlHelpers.tryo(_.toInt), IntegerValidator)
+  val bVText = VHtml.ajaxText[String]("", "must be an integer!", ControlHelpers.tryo(_.toInt), IntegerValidator)
   val conditionText = VHtml.validatorMsg((aVText.valueIntOpt, bVText.valueIntOpt), "a must be less than b",
   { a: (Option[Int], Option[Int]) => a match {
     case ((x:Option[Int]), (y:Option[Int])) => x.exists(xv => y.exists(yv => xv < yv))
@@ -145,9 +148,9 @@ class Playground extends DispatchSnippet {
 
   def validators(xhtml: NodeSeq): NodeSeq = {
     bind("form", xhtml,
-    "item1" -> aVText(),
-    "item2" -> bVText(),
-    "condition" -> conditionText(),
+    "item1" -> aVText.toForm,
+    "item2" -> bVText.toForm,
+    "condition" -> conditionText.toForm,
     "submit" -> SHtml.submit("submit", () => {
       (for {
         userA <- aVText.valueIntOpt
