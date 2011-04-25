@@ -109,17 +109,46 @@ class Playground extends DispatchSnippet {
   }
 
   object IntegerValidator extends Validator[String, Int] {
-    def validate(s: String) = ControlHelpers.tryo(s.toInt)
+    def validate(s: String) = ControlHelpers.tryo(s.toInt) ?~ "Integer required"
   }
   object RequiredValidator extends Validator[String, String] {
     def validate(s: String) = if (s.isEmpty) Failure("required field") else Full(s)
   }
 
-  // VHtml would replace SHtml and have similar methods (text, ajaxText, textArea, etc.)
-  // The "V" stands for Validator
-  object VHtml {
+  abstract class VHtml[T] {
+    def toForm: NodeSeq
+    def valueBox: Box[T]
+  }
+
+  // One problem with our current design (now previous) is that one may have many Validators and VHtmls.
+  //   This results in the following:
+  //    (1) we must remember to validate each in the submit/save
+  //    (2) it creates very bloated code
+  // Two possible solutions
+  //   (1) the author creates a "var singletonValidatorList: List[Validator]" which each created Validator
+  //       and VHtml is added to.  Though cumbersome, this provides a single point to test on submit/save
+  //   (2) A better solution would be encapsulating the list of validators to abstract it away from author.
+  //
+  // I will implement this by having the user instantiate a "page" object.  VHtml's will be instantiated
+  //   off of the Page and register themselves for tracking.
+  //      Note: Perhaps Page should be called "Form" (as there could be multiple per page)
+  //            or perhaps it should be called "Widget" as this may be the unit of sharing?
+  //            We can worry about renaming later on.
+  //
+  class Page {
+    private var validatorResults: List[()=>Box[Any]] = Nil
+
+    // Returns Empty if all validations are passing.  Otherwise returns list of Failures encountered
+    def getFailures: List[Failure] = {
+      validatorResults.flatMap( _() match {
+        case Full(f) => Nil //ignore good cases
+        case f: Failure => List(f) //collect bad ones
+        case Empty => List(Failure("an error occured -- ideally the validator should have given a Failure not an Empty"))
+      })
+    }
+
     def ajaxText[T](defaultValue: String, validator: Validator[String, T]): VHtml[T] = {
-      new VHtml[T] {
+      val result = new VHtml[T] {
         var value = defaultValue
         def valueBox = validator.validate(value)
 
@@ -129,25 +158,26 @@ class Playground extends DispatchSnippet {
                      </span>
 
       }
+      validatorResults ::= (() => result.valueBox)
+      result
     }
 
     def validatorMsg[T](value: => T, errorMessage: String, validate: T => Box[Unit]): VHtml[Unit] = {
-      new VHtml[Unit]() {
+      val result = new VHtml[Unit]() {
         def valueBox = validate(value) match { case Empty => Failure(errorMessage) case b => Full(()) }
         def toForm = <span>{SimpleWiringUI(value)(_ => valueBox match { case Failure(msg, _, _) => Text(msg) case _ => NodeSeq.Empty })}</span>
       }
+      validatorResults ::= (() => result.valueBox)
+      result
     }
 
   }
 
-  abstract class VHtml[T] {
-    def toForm: NodeSeq
-    def valueBox: Box[T]
-  }
+  val myPage = new Page()
 
-  val aVText = VHtml.ajaxText[Int](a.toString, IntegerValidator)
-  val bVText = VHtml.ajaxText[Int]("", IntegerValidator)
-  val conditionText = VHtml.validatorMsg((aVText.valueBox, bVText.valueBox), "a must be less than b",
+  val aVText = myPage.ajaxText[Int](a.toString, IntegerValidator)
+  val bVText = myPage.ajaxText[Int]("", IntegerValidator)
+  val conditionText = myPage.validatorMsg((aVText.valueBox, bVText.valueBox), "a must be less than b",
     (_:(Box[Int],Box[Int])) match {
       case (Full(a: Int), Full(b: Int)) => Some(()).filter(x => a < b)
       case x => Empty
@@ -160,17 +190,21 @@ class Playground extends DispatchSnippet {
     "item2" -> bVText.toForm,
     "condition" -> conditionText.toForm,
     "submit" -> SHtml.submit("submit", () => {
-      val result = for {
-        userA <- aVText.valueBox
-        userB <- bVText.valueBox
-        _ <- conditionText.valueBox
-      } yield {
-        a = userA
-        b = userB
-      }
-      result match {
-        case Failure(msg, _, _) => S.error(msg)
-        case _ => S.error("good") //doSave()
+      myPage.getFailures match {
+        case Nil => {
+          // COMMENT: I left this code as-is for now.  My vision, however, is that we would not extract
+          //          userA and userB but instead have them set by the VHtml.ajaxText only if Validators
+          //          pass.  This will greatly reduce code-bloat and improves code readability.
+          (for {
+            userA <- aVText.valueBox
+            userB <- bVText.valueBox
+          } yield {
+            a = userA
+            b = userB
+            S.error("good") //doSave()
+          }) getOrElse (S.error("bugbug -- should not be reachable"))
+        }
+        case failures => failures.foreach{case Failure(msg, _, _) => S.error(msg)}
       }
     }))
   }
