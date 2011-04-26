@@ -120,21 +120,6 @@ class Playground extends DispatchSnippet {
     def valueBox: Box[T]
   }
 
-  // One problem with our current design (now previous) is that one may have many Validators and VHtmls.
-  //   This results in the following:
-  //    (1) we must remember to validate each in the submit/save
-  //    (2) it creates very bloated code
-  // Two possible solutions
-  //   (1) the author creates a "var singletonValidatorList: List[Validator]" which each created Validator
-  //       and VHtml is added to.  Though cumbersome, this provides a single point to test on submit/save
-  //   (2) A better solution would be encapsulating the list of validators to abstract it away from author.
-  //
-  // I will implement this by having the user instantiate a "page" object.  VHtml's will be instantiated
-  //   off of the Page and register themselves for tracking.
-  //      Note: Perhaps Page should be called "Form" (as there could be multiple per page)
-  //            or perhaps it should be called "Widget" as this may be the unit of sharing?
-  //            We can worry about renaming later on.
-  //
   class Page {
     private var validatorResults: List[()=>Box[Any]] = Nil
 
@@ -173,17 +158,6 @@ class Playground extends DispatchSnippet {
 
   }
 
-  //COMMENT: I like that the simple case (no validators across form elements) is almost as simple as it used to be:
-  //
-  //           val myPage = new Page()
-  //           bind("form", xhtml,
-  //                "item1" -> myPage.ajaxText[Int](a.toString, a = _, IntegerValidator)
-  //                "submit" -> if(myPage.getFailures.isEmpty) doSave())
-  //
-  //COMMENT: I am concerned about the automatic translation of the Validators.  For example, if we had a
-  //         ValidUserValidator, it is not guaranteed that we wish to operate on a User object as we may simple
-  //         require the ID. Perhaps an acceptable solution is that the ValidUserValidator could return the userid: Long.
-  //
   val myPage = new Page()
 
   val aVText = myPage.ajaxText[Int](a.toString, a = _, IntegerValidator)
