@@ -7,7 +7,7 @@ import java.util.Date
 import code.lib._
 import Helpers._
 import net.liftweb.http.{DispatchSnippet, S, SHtml, WiringUI}
-import net.liftweb.http.js.JsCmds
+import net.liftweb.http.js.{JsCmd, JsCmds}
 
 class Playground extends DispatchSnippet {
 
@@ -147,13 +147,13 @@ class Playground extends DispatchSnippet {
       })
     }
 
-    def ajaxText[T](defaultValue: String, validator: Validator[String, T]): VHtml[T] = {
+    def ajaxText[T](defaultValue: String, func: T => JsCmd, validator: Validator[String, T]): VHtml[T] = {
       val result = new VHtml[T] {
         var value = defaultValue
         def valueBox = validator.validate(value)
 
         def toForm = <span>
-                       { SHtml.ajaxText(value, value = _) }
+                       { SHtml.ajaxText(value, v => {value = v; valueBox match { case Full(v) => func(v) case _ => JsCmds.Noop}}) }
                        { SimpleWiringUI(value)(_ => valueBox match { case Failure(msg, _, _) => Text(msg) case _ => NodeSeq.Empty })}
                      </span>
 
@@ -175,8 +175,8 @@ class Playground extends DispatchSnippet {
 
   val myPage = new Page()
 
-  val aVText = myPage.ajaxText[Int](a.toString, IntegerValidator)
-  val bVText = myPage.ajaxText[Int]("", IntegerValidator)
+  val aVText = myPage.ajaxText[Int](a.toString, a = _, IntegerValidator)
+  val bVText = myPage.ajaxText[Int]("", b = _, IntegerValidator)
   val conditionText = myPage.validatorMsg((aVText.valueBox, bVText.valueBox), "a must be less than b",
     (_:(Box[Int],Box[Int])) match {
       case (Full(a: Int), Full(b: Int)) => Some(()).filter(x => a < b)
@@ -191,19 +191,7 @@ class Playground extends DispatchSnippet {
     "condition" -> conditionText.toForm,
     "submit" -> SHtml.submit("submit", () => {
       myPage.getFailures match {
-        case Nil => {
-          // COMMENT: I left this code as-is for now.  My vision, however, is that we would not extract
-          //          userA and userB but instead have them set by the VHtml.ajaxText only if Validators
-          //          pass.  This will greatly reduce code-bloat and improves code readability.
-          (for {
-            userA <- aVText.valueBox
-            userB <- bVText.valueBox
-          } yield {
-            a = userA
-            b = userB
-            S.error("good") //doSave()
-          }) getOrElse (S.error("bugbug -- should not be reachable"))
-        }
+        case Nil => S.error("good") //doSave()
         case failures => failures.foreach{case Failure(msg, _, _) => S.error(msg)}
       }
     }))
