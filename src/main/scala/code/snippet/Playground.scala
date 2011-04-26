@@ -173,6 +173,17 @@ class Playground extends DispatchSnippet {
 
   }
 
+  //COMMENT: I like that the simple case (no validators across form elements) is almost as simple as it used to be:
+  //
+  //           val myPage = new Page()
+  //           bind("form", xhtml,
+  //                "item1" -> myPage.ajaxText[Int](a.toString, a = _, IntegerValidator)
+  //                "submit" -> if(myPage.getFailures.isEmpty) doSave())
+  //
+  //COMMENT: I am concerned about the automatic translation of the Validators.  For example, if we had a
+  //         ValidUserValidator, it is not guaranteed that we wish to operate on a User object as we may simple
+  //         require the ID. Perhaps an acceptable solution is that the ValidUserValidator could return the userid: Long.
+  //
   val myPage = new Page()
 
   val aVText = myPage.ajaxText[Int](a.toString, a = _, IntegerValidator)
