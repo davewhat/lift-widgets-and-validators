@@ -109,7 +109,7 @@ class Playground extends DispatchSnippet {
   }
 
   object IntegerValidator extends Validator[String, Int] {
-    def validate(s: String) = ControlHelpers.tryo(s.toInt) ?~ "Integer required"
+    def validate(s: String) = ControlHelpers.tryo(s.toInt) ?~! "Integer required"
   }
   object RequiredValidator extends Validator[String, String] {
     def validate(s: String) = if (s.isEmpty) Failure("required field") else Full(s)
