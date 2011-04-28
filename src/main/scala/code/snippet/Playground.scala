@@ -168,12 +168,6 @@ class Playground {
   val conditionText = mySnippet.validatorSpan[(Int, Int), (Int, Int)](flattenValidations(aVText.validatedValue, bVText.validatedValue),
                                   Some("a must be less than b"), n => NodeSeq.Empty, LessThanValidator)
 
-    (_:(Box[Int],Box[Int])) match {
-      case (Full(a: Int), Full(b: Int)) => Some(()).filter(x => a < b)
-      case x => Empty
-    }
-  )
-
   def render(xhtml: NodeSeq): NodeSeq = {
     bind("form", xhtml,
     "item1" -> aVText.toForm,
